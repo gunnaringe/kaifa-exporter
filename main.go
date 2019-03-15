@@ -1,14 +1,16 @@
 package main
 
-import "fmt"
-import "net/http"
-import "bufio"
-import "github.com/tarm/serial"
-import "time"
-import "encoding/binary"
-import "github.com/prometheus/client_golang/prometheus"
-import "github.com/prometheus/client_golang/prometheus/promauto"
-import "github.com/prometheus/client_golang/prometheus/promhttp"
+import (
+	"bufio"
+	"encoding/binary"
+	"fmt"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/tarm/serial"
+	"net/http"
+	"time"
+)
 
 //import "github.com/howeyc/crc16"
 
@@ -24,12 +26,12 @@ type result struct {
 	meterType                      string
 	reactiveImportPower            uint32
 	reactiveExportPower            uint32
-	currentL1                      float32
-	currentL2                      float32
-	currentL3                      float32
-	voltageL1                      float32
-	voltageL2                      float32
-	voltageL3                      float32
+	currentL1                      float64
+	currentL2                      float64
+	currentL3                      float64
+	voltageL1                      float64
+	voltageL2                      float64
+	voltageL3                      float64
 	meterClock                     time.Time
 	cumulativeActiveImportEnergy   uint32
 	cumulativeActiveExportEnergy   uint32
@@ -76,6 +78,82 @@ func readString(b []byte) (string, int) {
 	length := int(b[1])
 	return string(b[2 : length+2]), length + 2
 }
+
+var (
+	prom_activePowerImported = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "kaifa",
+		Name:      "active_power_imported",
+		Help:      "-",
+	})
+	prom_activePowerExported = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "kaifa",
+		Name:      "active_power_exported",
+		Help:      "-",
+	})
+	prom_reactivePowerImported = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "kaifa",
+		Name:      "reactive_power_imported",
+		Help:      "-",
+	})
+	prom_reactivePowerExported = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "kaifa",
+		Name:      "reactive_power_exported",
+		Help:      "-",
+	})
+	prom_current = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "kaifa",
+		Name:      "current",
+		Help:      "-",
+	},
+		[]string{"phase"})
+	prom_voltage = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "kaifa",
+		Name:      "voltage",
+		Help:      "-",
+	},
+		[]string{"phase"})
+	prom_info = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "kaifa",
+		Name:      "info",
+		Help:      "-",
+	},
+		[]string{"meter_id", "meter_type", "obil"})
+	prom_fetch = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "kaifa",
+		Name:      "last_update",
+		Help:      "-",
+	})
+	prom_timestamp = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "kaifa",
+		Name:      "timestamp",
+		Help:      "-",
+	})
+	prom_metertime = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "kaifa",
+		Name:      "metertime",
+		Help:      "-",
+	})
+	prom_cumulativeActiveImportEnergy = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "kaifa",
+		Name:      "cumulative_active_import_energy",
+		Help:      "-",
+	})
+	prom_cumulativeActiveExportEnergy = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "kaifa",
+		Name:      "cumulative_active_export_energy",
+		Help:      "-",
+	})
+	prom_cumulativeReactiveImportEnergy = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "kaifa",
+		Name:      "cumulative_reactive_import_energy",
+		Help:      "-",
+	})
+	prom_cumulativeReactiveExportEnergy = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "kaifa",
+		Name:      "cumulative_reactive_export_energy",
+		Help:      "-",
+	})
+)
 
 func handle(data []byte) {
 	var activePowerImported uint32
@@ -186,12 +264,12 @@ func handle(data []byte) {
 		activePowerExported:            activePowerExported,
 		reactiveImportPower:            reactiveImportPower,
 		reactiveExportPower:            reactiveExportPower,
-		currentL1:                      float32(currentL1) / 1000.0,
-		currentL2:                      float32(currentL2) / 1000.0,
-		currentL3:                      float32(currentL3) / 1000.0,
-		voltageL1:                      float32(voltageL1) / 10.0,
-		voltageL2:                      float32(voltageL2) / 10.0,
-		voltageL3:                      float32(voltageL3) / 10.0,
+		currentL1:                      float64(currentL1) / 1000.0,
+		currentL2:                      float64(currentL2) / 1000.0,
+		currentL3:                      float64(currentL3) / 1000.0,
+		voltageL1:                      float64(voltageL1) / 10.0,
+		voltageL2:                      float64(voltageL2) / 10.0,
+		voltageL3:                      float64(voltageL3) / 10.0,
 		obil:                           obil,
 		meterId:                        meterId,
 		meterType:                      meterType,
@@ -223,14 +301,45 @@ func handle(data []byte) {
 		fmt.Printf("    active energy: %8d WH    %8d WH\n", list.cumulativeActiveImportEnergy, list.cumulativeActiveExportEnergy)
 		fmt.Printf("  reactive energy: %8d VArh  %8d VArh\n", list.cumulativeReactiveImportEnergy, list.cumulativeActiveExportEnergy)
 	}
+
+	prom_activePowerImported.Set(float64(list.activePowerImported))
+	prom_timestamp.Set(float64(list.timestamp.UnixNano()) / 1e9)
+	prom_metertime.Set(float64(list.meterClock.UnixNano()) / 1e9)
+
+	if elements == 13 || elements == 18 {
+		prom_info.WithLabelValues(list.meterId, list.meterType, list.obil).Set(1)
+
+		prom_activePowerExported.Set(float64(list.activePowerExported))
+		prom_reactivePowerImported.Set(float64(list.reactiveImportPower))
+		prom_reactivePowerExported.Set(float64(list.reactiveExportPower))
+
+		prom_current.WithLabelValues("1").Set(list.currentL1)
+		prom_current.WithLabelValues("2").Set(list.currentL2)
+		prom_current.WithLabelValues("3").Set(list.currentL3)
+		prom_voltage.WithLabelValues("1").Set(list.voltageL1)
+		prom_voltage.WithLabelValues("2").Set(list.voltageL2)
+		prom_voltage.WithLabelValues("3").Set(list.voltageL3)
+	}
+	if elements == 18 {
+		prom_cumulativeActiveImportEnergy.Set(float64(list.cumulativeActiveImportEnergy))
+		prom_cumulativeActiveExportEnergy.Set(float64(list.cumulativeActiveExportEnergy))
+		prom_cumulativeReactiveImportEnergy.Set(float64(list.cumulativeReactiveImportEnergy))
+		prom_cumulativeReactiveExportEnergy.Set(float64(list.cumulativeReactiveExportEnergy))
+	}
+
+	prom_fetch.SetToCurrentTime()
 }
 
 func main() {
-	http.Handle("/metrics", promhttp.Handler())
-	http.ListenAndServe(":9500", nil)
+	reply := []byte{'\xA0', '\x9B', '\x01', '\x02', '\x01', '\x10', '\xEE', '\xAE', '\xE6', '\xE7', '\x00', '\x0F', '\x40', '\x00', '\x00', '\x00', '\x09', '\x0C', '\x07', '\xE3', '\x03', '\x09', '\x06', '\x0D', '\x00', '\x0A', '\xFF', '\x80', '\x00', '\x00', '\x02', '\x12', '\x09', '\x07', '\x4B', '\x46', '\x4D', '\x5F', '\x30', '\x30', '\x31', '\x09', '\x10', '\x36', '\x39', '\x37', '\x30', '\x36', '\x33', '\x31', '\x34', '\x30', '\x33', '\x37', '\x39', '\x36', '\x35', '\x35', '\x33', '\x09', '\x08', '\x4D', '\x41', '\x33', '\x30', '\x34', '\x48', '\x33', '\x45', '\x06', '\x00', '\x00', '\x0F', '\xE5', '\x06', '\x00', '\x00', '\x00', '\x00', '\x06', '\x00', '\x00', '\x02', '\xBD', '\x06', '\x00', '\x00', '\x00', '\x00', '\x06', '\x00', '\x00', '\x36', '\x7F', '\x06', '\x00', '\x00', '\x37', '\x90', '\x06', '\x00', '\x00', '\x11', '\x6B', '\x06', '\x00', '\x00', '\x09', '\x36', '\x06', '\x00', '\x00', '\x00', '\x00', '\x06', '\x00', '\x00', '\x09', '\x30', '\x09', '\x0C', '\x07', '\xE3', '\x03', '\x09', '\x06', '\x0D', '\x00', '\x0A', '\xFF', '\x80', '\x00', '\x00', '\x06', '\x01', '\x28', '\x4D', '\x75', '\x06', '\x00', '\x00', '\x00', '\x00', '\x06', '\x00', '\x0E', '\xF7', '\x72', '\x06', '\x00', '\x03', '\x15', '\x35', '\xC3', '\xAC', '\x7E'}
 
-	reply := []byte{'\xA0' }
-	handle(reply)
+	go func() {
+		handle(reply)
+	}()
+
+	fmt.Println("Serving metrics at http://localhost:9500/metrics")
+	http.Handle("/metrics", promhttp.Handler())
+	fmt.Println(http.ListenAndServe(":9500", nil))
 }
 
 func main2() {
