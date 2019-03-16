@@ -1,21 +1,24 @@
 # Prometheus Exporter for Kaifa meter
-env GOOS=linux GOARCH=arm GOARM=5 go build
 
-https://github.com/roarfred/AmsToMqttBridge/blob/master/Samples/Kaifa/obisdata.md
+Prometheus Exporter for Kaifa Power Meters used in Norway
 
-https://www.nek.no/info-ams-han-utviklere/
-https://www.nek.no/wp-content/uploads/2018/10/AMS-HAN-Port-Smart-Hus-og-Smart-Bygg-Gj%C3%B8r-det-selv-og-Pilotprosjekter-ver-1.16.pdf
-## OBIS list information
-https://www.nek.no/wp-content/uploads/2018/11/Kaifa-KFM_001.pdf
+## Background
 
-https://drive.google.com/drive/folders/0B3ZvFI0Dg1TDbDBzMU02cnU0Y28
+This project is inspired by https://github.com/roarfred/AmsToMqttBridge
 
-https://www.hjemmeautomasjon.no/forums/topic/390-ny-str%C3%B8mm%C3%A5ler-med-han-interface/?page=5
+Relevant reading:
+- https://www.nek.no/info-ams-han-utviklere/
+- https://www.nek.no/wp-content/uploads/2018/10/AMS-HAN-Port-Smart-Hus-og-Smart-Bygg-Gj%C3%B8r-det-selv-og-Pilotprosjekter-ver-1.16.pdf
+- https://www.nek.no/wp-content/uploads/2018/11/Kaifa-KFM_001.pdf
+- https://drive.google.com/drive/folders/0B3ZvFI0Dg1TDbDBzMU02cnU0Y28
+- https://drive.google.com/open?id=1c3f0D52ZxRLzoG60Sj68kE0U0XDaYWQI 
 
+### OBIS list information
 
-'\x7E' is used as start and end delimiter
-Can maybe be found as part of message as well...
+'\x7E' is used as start and stop bit
 
+Example of byte array
+```
 /*
 7e                                                     : Flag (0x7e)
 a0 87                                                  : Frame Format Field
@@ -44,16 +47,60 @@ e6 e7 00                                               : DLMS/COSEM LLC Addresse
 97 35                                                  : FCS
 7e                                                     : Flag
 */
+```
 
+### Data fields
 
-https://github.com/roarfred/AmsToMqttBridge/blob/master/Code/Arduino/HanReader/src/DlmsReader.cpp
+All data fields consists of a single byte giving the type preceding the actual data.
 
-Data types
-0x0A OBIS code value
-0x09 string value (next byte is length)
-0x02 byte value (1 byte)
-0x12 integer value (2 bytes) uint16
-0x06 integer value (4 bytes) uint32
+```
+| Type | Length    |                      |
+| ---- | --------- | -------------------- |
+| 0x0A | OBIS code value                  |
+| 0x09 | Variable* | ASCII value          |
+| 0x02 | 1 byte    | byte value           |
+| 0x12 | 2 bytes   | integer value uint16 |
+| 0x06 | 4 bytes   | integer value uint32 |
 
+* Length is value of first byte
+```
 
-// TODO: Checksum
+## Compile and run
+
+### Dependencies
+```bash
+go get github.com/prometheus/client_golang/prometheus/promhttp
+go get github.com/tarm/serial
+```
+
+### Compile
+```bash
+# Rasberry PI Zero W
+env GOOS=linux GOARCH=arm GOARM=5 go build
+```
+
+### systemd
+Binary is located at /usr/bin/kaifa-exporter
+
+```
+sudo cat << EOF > /etc/systemd/system/kaifa.service
+[Unit] 
+Description=kaifa-exporter 
+After=network-online.target
+
+[Service] 
+ExecStart=/usr/usr/bin/kaifa-exporter
+Restart = always
+[Install] 
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable kaifa.service
+sudo systemctl start kaifa.service
+```
+
+### My setup
+I am running this in a Rasberry Pi Zero W.
+
+This is running autossh to create a reverse tunnel to a t3.nano instance in AWS, where my Prometheus instance is running.
