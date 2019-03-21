@@ -2,8 +2,17 @@
 
 Prometheus Exporter for Kaifa Power Meters used in Norway
 
-## Background
+The project is written i Go
 
+## Setup
+- Rasberry PI Zero W
+- USB MBUS Slave Module, example from [AliExpress](https://www.aliexpress.com/item/Freeshipping-USB-to-MBUS-slave-module-discrete-component-non-TSS721-circuit-M-BUS-bus-data-monitor/32814808312.html)
+
+Meter-Bus uses two wires for communication. The Kaifa meter has a RJ45 plug, where the two left-most ones are used 
+(orange cables in the T568B standard).
+
+
+## Background
 This project is inspired by https://github.com/roarfred/AmsToMqttBridge
 
 Relevant reading:
@@ -79,11 +88,20 @@ go get github.com/tarm/serial
 env GOOS=linux GOARCH=arm GOARM=5 go build
 ```
 
+##### Tip
+
+For smaller binary, strip debug info:
+```
+env GOOS=linux GOARCH=arm GOARM=5 go build -ldflags="-s -w"
+```
+
+[upx](https://github.com/upx/upx) may also be applied
+
 ### systemd
 Binary is located at /usr/bin/kaifa-exporter
 
 ```
-sudo cat << EOF > /etc/systemd/system/kaifa.service
+sudo cat << EOF > /etc/systemd/system/kaifa-exporter.service
 [Unit] 
 Description=kaifa-exporter 
 After=network-online.target
@@ -96,8 +114,8 @@ WantedBy=multi-user.target
 EOF
 
 sudo systemctl daemon-reload
-sudo systemctl enable kaifa.service
-sudo systemctl start kaifa.service
+sudo systemctl enable kaifa-exporter.service
+sudo systemctl start kaifa-exporter.service
 ```
 
 ### My setup

@@ -1,0 +1,9 @@
+[Unit]
+Description=kaifa-exporter
+After=network-online.target
+
+[Service]
+ExecStart=/usr/usr/bin/kaifa-exporter
+Restart = always
+[Install]
+WantedBy=multi-user.target
