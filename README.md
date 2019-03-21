@@ -2,7 +2,9 @@
 
 Prometheus Exporter for Kaifa Power Meters used in Norway
 
-The project is written i Go
+It should be a quite small job to adjust this to work also with the other AMS meters,
+so feel free to create a PR for doing so. I don't have any other models to use for testing,
+but could offer some assistance.
 
 ## Setup
 - Rasberry PI Zero W
