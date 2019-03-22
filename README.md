@@ -78,16 +78,11 @@ All data fields consists of a single byte giving the type preceding the actual d
 
 ## Compile and run
 
-### Dependencies
-```bash
-go get github.com/prometheus/client_golang/prometheus/promhttp
-go get github.com/tarm/serial
-```
+Requires at least Go version 1.12
 
-### Compile
 ```bash
 # Rasberry PI Zero W
-env GOOS=linux GOARCH=arm GOARM=5 go build
+env GOOS=linux GOARCH=arm GOARM=5 go build -o kaifa-exporter
 ```
 
 ##### Tip
