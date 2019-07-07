@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/binary"
 	"fmt"
+	"github.com/alecthomas/kingpin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/tarm/serial"
 	"net/http"
@@ -11,6 +12,14 @@ import (
 )
 
 //import "github.com/howeyc/crc16"
+
+var (
+	verbose       = kingpin.Flag("verbose", "Verbose mode.").Short('v').Bool()
+	listenAddress = kingpin.Flag("listen", "Prometheus listen addr").Short('l').Default(":9500").String()
+	serialName    = kingpin.Flag("serial-device", "Device for serial port").Short('d').Default("/dev/ttyUSB0").String()
+	serialBaud    = kingpin.Flag("serial-baud", "Baud").Short('b').Default("2400").Int()
+	serialParity  = kingpin.Flag("serial-parity", "Parity").Short('p').Default("even").Enum("none", "odd", "even", "mark", "space")
+)
 
 type result struct {
 	elements  uint8
@@ -97,15 +106,16 @@ func handle(data []byte) {
 	var cumulativeReactiveImportEnergy uint32
 	var cumulativeReactiveExportEnergy uint32
 
-
 	obisCodeValue := data[0]
 	length := data[1]
 	//source := data[2:4]
 	//destination := data[4]
 	//controlField := data[5] // crc16 checksum
 	//hsc := data[6:8]
-	fmt.Printf("%0X obis code value\n", obisCodeValue)
-	fmt.Printf("%d bytes", length)
+	if *verbose {
+		fmt.Printf("%0X obis code value\n", obisCodeValue)
+		fmt.Printf("%d bytes", length)
+	}
 	//fmt.Printf("DLMS/COSEM LLC Addresses: %X\n", data[8:11])
 	//fmt.Printf("DLMS HEADER?: %X\n", data[11:16])
 
@@ -207,7 +217,9 @@ func handle(data []byte) {
 	}
 
 	register(&list)
-	write(&list)
+	if *verbose {
+		write(&list)
+	}
 }
 
 func write(list *result) {
@@ -234,10 +246,29 @@ func write(list *result) {
 	}
 }
 
+func parity(name *string) serial.Parity {
+	switch *name {
+	case "none":
+		return serial.ParityNone
+	case "odd":
+		return serial.ParityOdd
+	case "even":
+		return serial.ParityEven
+	case "mark":
+		return serial.ParityMark
+	case "space":
+		return serial.ParitySpace
+	default:
+		panic("Invalid parity")
+	}
+}
+
 func main() {
+	kingpin.Parse()
 	fmt.Println("Starting read of HAN port")
 
-	c := &serial.Config{Name: "/dev/ttyUSB0", Baud: 2400, Parity: serial.ParityEven, StopBits: serial.Stop1}
+	parity := parity(serialParity)
+	c := &serial.Config{Name: *serialName, Baud: *serialBaud, Parity: parity, StopBits: serial.Stop1}
 	s, err := serial.OpenPort(c)
 	if err != nil {
 		panic(err)
@@ -252,8 +283,7 @@ func main() {
 	}
 
 	go func() {
-		i := 1
-		for i < 2 {
+		for true {
 			// Read until hitting delimiter
 			bytes, err := reader.ReadBytes('\x7E')
 			if err != nil {
@@ -268,17 +298,19 @@ func main() {
 
 			// Read length includes stop bit
 			declaredLength := int(bytes[1])
-			if declaredLength != readLength -1 {
-				fmt.Printf("[Skipping] Read and declared message length does not match: actual=%d declared:%d\n", readLength -1 , declaredLength)
+			if declaredLength != readLength-1 {
+				fmt.Printf("[Skipping] Read and declared message length does not match: actual=%d declared:%d\n", readLength-1, declaredLength)
 				continue
 			}
 
-			fmt.Printf("Length: %d\n", len(bytes))
+			if *verbose {
+				fmt.Printf("Length: %d\n", len(bytes))
+			}
 			handle(bytes)
 		}
 	}()
 
-	fmt.Println("Serving metrics at http://localhost:9500/metrics")
-	http.Handle("/metrics", promhttp.Handler())
-	fmt.Println(http.ListenAndServe(":9500", nil))
+	fmt.Printf("Serving metrics at %s\n", *listenAddress)
+	http.Handle("/", promhttp.Handler())
+	fmt.Println(http.ListenAndServe(*listenAddress, nil))
 }

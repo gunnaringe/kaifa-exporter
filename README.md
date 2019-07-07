@@ -6,13 +6,25 @@ It should be a quite small job to adjust this to work also with the other AMS me
 so feel free to create a PR for doing so. I don't have any other models to use for testing,
 but could offer some assistance.
 
+## Install and run
+```bash
+wget https://github.com/gunnaringe/kaifa-exporter/releases/download/v0.1.0/kaifa-exporter-arm5 -O kaifa-exporter
+sudo install kaifa-exporter /usr/local/bin/
+
+# Enable bash completion by adding the following line to your .bashrc
+eval "$(kaifa-exporter --completion-script-bash)"
+
+# Run on standard port (9500)
+kaifa-exporter
+```
+
+
 ## Setup
 - Rasberry PI Zero W
 - USB MBUS Slave Module, example from [AliExpress](https://www.aliexpress.com/item/Freeshipping-USB-to-MBUS-slave-module-discrete-component-non-TSS721-circuit-M-BUS-bus-data-monitor/32814808312.html)
 
 Meter-Bus uses two wires for communication. The Kaifa meter has a RJ45 plug, where the two left-most ones are used 
 (orange cables in the T568B standard).
-
 
 ## Background
 This project is inspired by https://github.com/roarfred/AmsToMqttBridge
